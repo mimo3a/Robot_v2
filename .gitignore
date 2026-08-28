@@ -1,0 +1,15 @@
+# Build output
+Debug/
+Release/
+*.elf
+*.map
+*.list
+*.bin
+*.hex
+*.o
+*.d
+
+# Eclipse / STM32CubeIDE workspace metadata
+.metadata/
+RemoteSystemsTempFiles/
+*.launch
