@@ -1,92 +1,129 @@
 # Robot v2
 
-STM32F407 Discovery based robot with dual DC motor control via L298N driver and FreeRTOS.
+Tracked mobile robot platform based on the **STM32F407 Discovery** and **FreeRTOS**.
 
-## Hardware
+> **Status:** chassis assembled; motor-control wiring, encoder integration and sensors are the next development steps.
 
-| Component | Details |
+![Robot V2 prototype](docs/Oct%204,%202026,%2009_45_28%20PM.jpg)
+
+## Project goal
+
+Robot V2 is a practical embedded-systems project for developing and testing:
+
+- STM32 firmware in C
+- FreeRTOS task-based architecture
+- DC motor control
+- encoder feedback
+- UART / I2C / SPI communication
+- sensor integration
+- debugging with the onboard ST-LINK
+- later communication with a Linux computer for higher-level control
+
+## Current hardware prototype
+
+The first tracked chassis has been assembled.
+
+| Component | Current setup |
 |---|---|
-| MCU board | STM32F407 Discovery |
-| Motor driver | L298N (dual H-bridge) |
-| Motors | 2x DC motor |
-| Motor power | 12V battery pack (separate) |
-| Board power | USB power bank |
+| MCU board | STM32F407G-DISC1 Discovery |
+| Drive | Tracked differential drive |
+| Motors | 2 × geared DC motors |
+| Motor drivers | 2 × IBT-2 / BTS7960 H-bridge modules |
+| Mechanical platform | Custom tracked chassis with removable electronics plate |
+| Power | Battery-powered; power distribution still being finalized |
+| Debug/programming | Onboard ST-LINK |
 
-## Pin connections
+### Prototype views
 
-### Motor A — L298N Channel A
-| L298N pin | STM32 pin | Function |
-|---|---|---|
-| IN1 | PB0 | Forward |
-| IN2 | PB1 | Reverse |
-| ENA | jumper | Always enabled (full speed) |
+![Robot V2 chassis](docs/Oct%204,%202026,%2009_45_14%20PM.jpg)
 
-### Motor B — L298N Channel B
-| L298N pin | STM32 pin | Function |
-|---|---|---|
-| IN3 | PC4 | Forward |
-| IN4 | PC5 | Reverse |
-| ENB | jumper | Always enabled (full speed) |
+![Robot V2 top view](docs/Oct%204,%202026,%2009_45_50%20PM.jpg)
 
-> **Note:** L298N VSS (5V logic) and GND must be connected to the STM32 board.
-> Motor VCC (12V) is powered separately from the battery pack.
-> GND of 12V battery and GND of power bank must be joined together.
+## Firmware
 
-## Software
+The project is generated with **STM32CubeMX / STM32CubeIDE** and currently uses:
 
-- **STM32CubeMX** generated HAL initialization
-- **FreeRTOS** (CMSIS-RTOS V2) with two tasks:
-  - `defaultTask` — UART status output every 500ms, blinks LD4
-  - `motorTask` — motor control sequence
+- STM32 HAL
+- FreeRTOS
+- CMSIS-RTOS V2
+- UART debugging
+- onboard Discovery LEDs for diagnostics
 
-### Motor task sequence
-1. Wait 1 second (power supply settling)
-2. Both motors forward for 2 seconds
-3. Both motors stop
-4. Task sleeps indefinitely
+The current firmware is still an early hardware-test version. Motor-control code will be adapted to the final dual-driver wiring as the chassis integration progresses.
 
-### UART debug output (USART2, 115200 baud)
+## Current development steps
+
+1. Finalize power distribution
+2. Mount and connect the STM32F407 Discovery securely
+3. Connect both motor drivers
+4. Configure PWM and direction control
+5. Add motor encoder inputs
+6. Create separate FreeRTOS tasks for motor control and sensor processing
+7. Add distance and orientation sensors
+8. Add communication with the Linux computer
+9. Implement closed-loop speed control
+
+## Planned software architecture
+
+```text
+                Linux computer
+                      |
+               UART / USB / CAN
+                      |
+              STM32F407 Discovery
+                      |
+              +-------+-------+
+              |               |
+          Motor task      Sensor task
+              |               |
+       PWM / direction    I2C / GPIO
+              |               |
+        Motor drivers        Sensors
+              |
+           Motors
+              |
+           Encoders
 ```
-Motor: waiting
-Motor: forward
-Motor: stopped
-```
 
-## Known issues and fixes
+The STM32 is intended to handle time-critical low-level control, while the Linux computer will later be used for higher-level functions such as the web interface, navigation and camera processing.
 
-### PB4/PB5 → PC4/PC5 pin change
-Originally IN3/IN4 were on PB4/PB5. PB4 is the JTAG JTRST pin — it has an internal
-pull-up after reset, causing motor B to briefly spin before `MX_GPIO_Init()` reconfigures
-it. Moved to PC4/PC5 (plain GPIO with no special reset state) to fix this.
+## Development notes
 
-### Duplicate `MOTOR_GPIO_Port` define
-After the pin change, code had two conflicting defines:
-```c
-#define MOTOR_GPIO_Port GPIOB  // motor A
-#define MOTOR_GPIO_Port GPIOC  // motor B — overwrote the first one
-```
-The second define silently overrode the first, so motor A (PB0/PB1) received no signals.
-Fixed by using separate defines per channel: `MOTOR_A_GPIO_Port` and `MOTOR_B_GPIO_Port`.
+During early bench testing, several useful hardware/software issues were identified:
 
-### Power bank auto-shutoff
-The STM32F407 Discovery alone draws ~100mA. Most power banks cut off below 200–500mA,
-causing periodic resets (red power LED blinks, motors restart every ~30–60 seconds).
+- GPIO reset states can briefly affect connected motor-control inputs.
+- Special-function/JTAG pins should be avoided for motor-control signals unless intentionally configured.
+- All controller and motor-driver grounds must share a common reference.
+- Power banks may switch off when the load current is too low; a dedicated regulator is preferable for the final robot.
 
-**Solutions:**
-- Use a power bank with "always on" / low-current mode
-- Add a 47–100 Ohm resistor between 5V and GND to increase idle current draw
-- Use a dedicated LiPo + 5V boost converter without auto-off
+## Repository structure
 
-## Project structure
-
-```
+```text
 Robot_v2/
 ├── Core/
-│   ├── Inc/main.h          — pin definitions
-│   └── Src/main.c          — main logic, motor task, FreeRTOS setup
+│   ├── Inc/
+│   └── Src/
 ├── Drivers/
-│   └── STM32F4xx_HAL_Driver/
 ├── Middlewares/
-│   ├── Third_Party/FreeRTOS/
-│   └── ST/STM32_USB_Host_Library/
+│   └── Third_Party/FreeRTOS/
+├── docs/
+│   └── prototype photos
+└── README.md
 ```
+
+## Roadmap
+
+- [x] Build tracked chassis
+- [x] Install geared motors
+- [x] Install motor-driver modules
+- [x] Prepare STM32F407 Discovery firmware project
+- [x] Enable FreeRTOS
+- [x] Verify UART debug output
+- [ ] Finalize STM32 mounting/interface board
+- [ ] Wire both motor drivers
+- [ ] Implement PWM motor control
+- [ ] Integrate encoders
+- [ ] Add distance sensors
+- [ ] Add IMU
+- [ ] Add Linux-to-STM32 communication
+- [ ] Implement closed-loop drive control
